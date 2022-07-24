@@ -1,11 +1,3 @@
-####################################
-#                                  #
-#  GH811: Problem Set 3 Solutions  #
-#          Fall 2021               #
-#        Andrew C. Stokes          #
-#                                  #
-####################################
-
 #### Data Set Up ####
 
 #Set working directory#
@@ -316,16 +308,4 @@ exp(cbind(OR = coef(model_2), confint(model_2)))
     # of trying cigarettes after 1 year of follow up compared with youth who 
     #do not live with a tobacco user. 
 
-####Question 10 ####
-
-#Question 10: Congratulations on finishing your analysis! 
-#Now it is time to start thinking about limitations and next steps to discuss. 
-
-#Q10A: Name 2-3 limitations of this analysis 
-  
-    #Answers will vary
-
-#Q10B: If you were to pursue this investigation further, what would be the next steps? 
-  
-    #Answers will vary
 
