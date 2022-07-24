@@ -1,0 +1,218 @@
+---
+title: "cs699-project"
+author: "Tia Hang"
+date: "3/27/2022"
+output:
+  word_document: default
+  html_document: default
+---
+#### DATA PROCESSING - PART I####
+```{r}
+# reading in the dataset
+my_folder <- "/Users/tianchuhang/Desktop/CS699/project"
+setwd(my_folder)
+getwd()
+
+nasa_raw<-read.csv("nasa_raw.csv", header=TRUE)
+
+#install dplyr
+library(dplyr)
+
+# Looking for tables with NAs
+nasa_raw %>% summarise(across(everything(), ~ sum(is.na(.))))
+
+# Removing NA values from Age, Education Completed, and Household size.
+nasa <- nasa_raw[complete.cases(nasa_raw[ ,]),]
+
+# check tables with NAs
+nasa %>% summarise(across(everything(), ~ sum(is.na(.))))
+
+#check data type
+#data(nasa)
+#str(nasa)
+```
+
+#### DATA REDUCTION ####
+```{r}
+#convert the class attribute to factor
+nasa[,'Hazardous']<-factor(nasa[,'Hazardous'])
+
+#remove the useless columns such as ID,name,date...
+nasa_new = subset(nasa, select = -c(Neo.Reference.ID,Name,Orbit.ID,       Close.Approach.Date,Orbit.Determination.Date,Orbiting.Body,Equinox))
+#str(nasa_new) #6008*33
+```
+
+#### DATA PROCESSING - PART II####
+
+#check for noise data by using the 'NoiseFiltersR' package
+#https://cran.r-project.org/web/packages/NoiseFiltersR/vignettes/NoiseFiltersR.pdf
+```{r}
+#install.packages("NoiseFiltersR")
+library(NoiseFiltersR)
+
+# Using the default method:
+out_Def <- edgeBoostFilter(nasa_new, classColumn = 33)
+out_For <- edgeBoostFilter(Hazardous~., nasa_new)
+
+# Checking that the filtered datasets are identical:
+identical(out_Def$cleanData, out_For$cleanData)
+
+#check results
+#str(out_For) #3874*33
+print(out_For) #Number of removed instances: 2134 (35.51931 %)
+
+#save the filted result as a new df
+nasa_new1 <- out_For$cleanData #3874*33
+#str(nasa_new1)
+```
+
+# Checking for Inconsistent data
+```{r}
+subset1 <- subset(nasa_new1, 
+                  nasa_new1$Est.Dia.in.KM.min > nasa_new1$Est.Dia.in.KM.max |
+                  nasa_new1$Est.Dia.in.M.min > nasa_new1$Est.Dia.in.M.max |
+                  nasa_new1$Est.Dia.in.Miles.min > nasa_new1$Est.Dia.in.Miles.max |
+                  nasa_new1$Est.Dia.in.Feet.min > nasa_new1$Est.Dia.in.Feet.max
+                 )
+#subset1 #there is no inconsistent data
+```
+# Checking for Outliers
+```{r}
+#check outliers for Absolute.Magnitude 
+boxplot(nasa_new1[,1], main = "Boxplot")
+
+# get values of Q1, Q3
+lowerq = quantile(nasa_new1[,1])[2]
+upperq = quantile(nasa_new1[,1])[4]
+
+# get values of IQR
+iqr = IQR(nasa_new1[,1])
+
+# we identify extreme outliers
+Tmin = lowerq - (iqr * 3)
+Tmax = upperq + (iqr * 3)
+
+#new df
+nasa_new1 <- subset(nasa_new1, nasa_new1[,1] > Tmin & nasa_new1[,1] < Tmax)
+
+
+#check outliers for Est.Dia.in.KM.min 
+boxplot(nasa_new1[,2], main = "Boxplot")
+
+# get values of Q1, Q3
+lowerq = quantile(nasa_new1[,2])[2]
+upperq = quantile(nasa_new1[,2])[4]
+
+# get values of IQR
+iqr = IQR(nasa_new1[,2])
+
+# we identify extreme outliers
+Tmin = lowerq - (iqr * 3)
+Tmax = upperq + (iqr * 3)
+
+#new df
+nasa_new1 <- subset(nasa_new1, nasa_new1[,2] > Tmin & nasa_new1[,2] < Tmax)
+
+#str(nasa_new1)
+#df [3,794 × 33]
+```
+```{r}
+# Option 1: covering all numeric type to categorical type
+length(nasa_new1)
+nasa_beforeforloop<-nasa_new1
+
+nasa_new1 <- nasa_beforeforloop
+for (i in 1:32){
+  lowerq = quantile(nasa_new1[,i])[2]
+  upperq = quantile(nasa_new1[,i])[4]
+  for (j in 1:3794){
+    if(nasa_new1[j,i]<lowerq){
+      nasa_new1[j,i] <- "low"
+    } else if (nasa_new1[j,i]>upperq) {
+      nasa_new1[j,i] <- "high"
+    } else {
+      nasa_new1[j,i] <- "medium"
+    }
+           
+  }
+  
+}
+
+nasa_new1$Hazardous <- ifelse(nasa_new1$Hazardous==1,"True","False")
+
+#Option 2: just coverting the class attribute
+nasa_beforeforloop$Hazardous <- ifelse(nasa_beforeforloop$Hazardous==1,"True","False")
+```
+
+##### Splitting the dataset into training and test sets ######
+```{r}
+set.seed(123)                              
+data <- nasa_beforeforloop
+#head(data)     
+#str(data)
+
+# have 66% training data and 34% testing data
+split1<- sample(c(rep(0, 0.66 * nrow(data)), rep(1, 0.34 * nrow(data))))
+split1
+
+#table(split1)
+
+#create train data set and split the data set separately.
+train <- data[split1 == 0, ]
+head(train)
+dim(train) #2505   33
+#str(train)
+#create test data set and split the data set separately.
+test <- data[split1== 1, ] 
+#head(test)
+dim(test) #1289   33
+
+
+#save as .csv file
+write.csv(nasa_new1, "nasa_cleaned.csv")
+write.csv(test, "test.csv")
+write.csv(train, "train.csv")
+```
+
+```{r}
+
+mat3.data <- c(	0.986,	0.986,	0.986,	0.999,	0.986,
+               	0.714,	0.714,	0.714,	0.714,	0.714,
+              0.954,	0.954,	0.954,	0.954,	0.954,
+               0.714,	0.714,	0.714,	0.714,	0.714,
+               0.990,	0.990,	0.990,	0.999,	0.990)
+rnames <- c("Naïve Bayes","Voted Perceptron","Hoeffding Tree","ZeroR","IBK(w/ k=10)")
+cnames <- c("1R",	"InfoGain",	"Correlation",	"CFS",	 "Symmetrical Uncert Attribute")
+named_matrix <- matrix(mat3.data,nrow=5,byrow=TRUE,dimnames=list(rnames,cnames))
+named_matrix
+dim(named_matrix)
+
+y=barplot(named_matrix, beside = TRUE, 
+        col=rep(c("tan", "orange1", "magenta", "cyan", "red"),each=1),
+        ylim = c(0, 1), 
+        main = "Performance of 25 Classification Models (test dataset)",
+        xlab = "Attribute Selection Method",
+        ylab = "TP Rate",
+        )
+
+text(y,0,round(named_matrix, 2),cex=1,pos=3)
+
+legend("topright",
+       legend = c("Naïve Bayes","Voted Perceptron","Hoeffding Tree","ZeroR","IBK(w/ k=10)"),
+       fill = c("tan", "orange1", "magenta", "cyan", "red"),
+       density = 30, # Shading lines density
+       angle = 90)   # Angle of the shading lines
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
